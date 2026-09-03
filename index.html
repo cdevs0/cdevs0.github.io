@@ -205,14 +205,14 @@
 
     <!-- Toggle Launcher Button -->
     <div class="top-control">
-      <button id="openOldSiteBtn" class="downloadBtn">[ + ] LAUNCH OLD WEBSITE ARCHIVE</button>
+      <button id="openOldSiteBtn" class="downloadBtn">[ + ]</button>
     </div>
 
     <!-- Hidden Old Website Embed Wrapper -->
     <div id="oldWebsiteWrapper" class="old-site-wrapper">
       <div class="old-site-header">
-        <h2>// ARCHIVE: Old website</h2>
-        <button id="closeEmbedBtn" class="closeBtn">[ X ] CLOSE</button>
+        <h2>Old Website</h2>
+        <button id="closeEmbedBtn" class="closeBtn">[ X ]</button>
       </div>
       <embed src="https://codeformatstudio.github.io/"></embed>
     </div>
@@ -222,12 +222,14 @@
       <p><strong>Official website on GitHub</strong></p>
       <p>Includes binary and source code downloads for every single project.</p>
       <p>All projects are open-source, written primarily in C, Rust, Go, Python.</p>
+      <p>Coming soon: <i>
+        IDEs, every single IDE is written in the programming language it serves (e.g. Python IDE is written entirely in Python).
+      </i></p>
       
       <!-- Download Section with data-source attributes -->
       <div class="download-section">
         <h3>// QUICK REPO DOWNLOADS</h3>
-        <button class="downloadBtn" data-source="cdevs0-core-v2.5-src.tar.gz">Download Core [C / Rust]</button>
-        <button class="downloadBtn" data-source="cdevs0-utils-v1.8.zip">Download Utilities [Go / Python]</button>
+        <button class="downloadBtn" data-source="./python/cdevs_py_ide.py">Download Python IDE</button>
       </div>
     </div>
 
