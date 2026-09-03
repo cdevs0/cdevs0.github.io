@@ -223,14 +223,13 @@
       <p>Includes binary and source code downloads for every single project.</p>
       <p>All projects are open-source, written primarily in C, Rust, Go, Python.</p>
       <p>Coming soon: <i>
-        IDEs, every single IDE is written in the programming language it serves (e.g. Python IDE is written entirely in Python).
+        IDEs: every single IDE is written in the programming language it serves (e.g. Python IDE is written entirely in Python).
       </i></p>
       
       <!-- Download Section with data-source attributes -->
       <div class="download-section">
         <h3>// QUICK REPO DOWNLOADS</h3>
-        <button class="downloadBtn" data-source="./python/cdevs_py_ide.py">Download Python IDE</button>
-      </div>
+      <a href="./python/cdevs_py_ide.py" download class="downloadBtn" style="display: inline-block; text-decoration: none;">Download Python IDE</a></div>
     </div>
 
     <script>
@@ -261,8 +260,7 @@
         button.addEventListener('click', (event) => {
           const sourceFile = button.getAttribute('data-source');
           console.log(`%c[DOWNLOAD TRIGGERED] Target Source: ${sourceFile}`, "color: #ff0055; font-weight: bold;");
-          alert(`Secure Connection Established.\nDownloading requested file: ${sourceFile}`);
-        });
+          });
       });
 
       // Dynamic Click Effect (Creates a neon flash ripple)
