@@ -1,4 +1,4 @@
-<div color="lightblue" background="black" padding="20px" font-family="sans-serif;">
+<div>
   <h1>CDevs0 official website</h1>
   <p><strong>Official website on GitHub</strong></p>
   <p>Includes binary downloads for every single project</p>
