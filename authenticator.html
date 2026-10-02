@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>2FA Authenticator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              ffDark: '#121319',
+              ffPanel: '#1e2029',
+              ffAccent: '#00f0ff',
+              ffPurple: '#a855f7',
+              ffRose: '#f43f5e'
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+      body {
+        font-family: 'Plus Jakarta Sans', sans-serif;
+        background-color: #0b0c10;
+        color: #f3f4f6;
+      }
+      .font-mono {
+        font-family: 'JetBrains Mono', monospace;
+      }
+      .glass-panel {
+        background: rgba(30, 32, 41, 0.85);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      .glass-input {
+        background: rgba(18, 19, 25, 0.7);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+      }
+      .glass-input:focus {
+        border-color: #00f0ff;
+        box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+      }
+      ::-webkit-scrollbar {
+        width: 5px;
+      }
+      ::-webkit-scrollbar-track {
+        background: rgba(11, 12, 16, 0.5);
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.15);
+        border-radius: 3px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(0, 240, 255, 0.4);
+      }
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      .no-scrollbar {
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+      }
+    </style>
+</head>
+<body class="min-h-screen flex items-center justify-center p-2 sm:p-4 bg-slate-950 text-slate-100">
+
+    <div class="w-full max-w-[380px] h-[720px] glass-panel rounded-2xl shadow-2xl flex flex-col overflow-hidden relative border border-slate-800">
+
+        <!-- Header Toolbar -->
+        <div class="bg-slate-900/90 px-4 py-3 border-b border-slate-800 flex items-center justify-between select-none">
+            <div class="flex items-center space-x-2.5">
+                <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 via-blue-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                    <i class="fa-solid fa-key text-slate-950 text-sm"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-bold tracking-wide text-white flex items-center gap-1.5">
+                        KeyVault Pro <span class="text-[9px] bg-cyan-500/20 text-cyan-300 font-mono px-1.5 py-0.5 rounded border border-cyan-500/30">FF 115</span>
+                    </h1>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-1.5">
+                <button id="lockVaultBtn" title="Lock Vault" class="p-2 text-slate-400 hover:text-cyan-400 hover:bg-slate-800 rounded-xl transition-all">
+                    <i class="fa-solid fa-lock text-xs"></i>
+                </button>
+            </div>
+        </div>
+
+        <div id="pinLockOverlay" class="absolute inset-0 bg-slate-950/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 hidden">
+            <div class="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center mb-4 text-cyan-400 text-2xl shadow-xl shadow-cyan-500/10">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <h2 id="pinLockTitle" class="text-base font-bold text-white mb-1">Vault Locked</h2>
+            <p id="pinLockSub" class="text-xs text-slate-400 mb-6 text-center">Enter 4-digit Master PIN to unlock authenticator</p>
+
+            <div class="flex gap-3 mb-6" id="pinInputs">
+                <input type="password" maxlength="1" class="w-11 h-12 text-center text-xl font-bold rounded-xl glass-input text-cyan-400 focus:outline-none" autofocus>
+                <input type="password" maxlength="1" class="w-11 h-12 text-center text-xl font-bold rounded-xl glass-input text-cyan-400 focus:outline-none">
+                <input type="password" maxlength="1" class="w-11 h-12 text-center text-xl font-bold rounded-xl glass-input text-cyan-400 focus:outline-none">
+                <input type="password" maxlength="1" class="w-11 h-12 text-center text-xl font-bold rounded-xl glass-input text-cyan-400 focus:outline-none">
+            </div>
+
+            <button id="unlockBtn" class="w-full py-2.5 bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-cyan-500/25">
+                Unlock Authenticator
+            </button>
+            <p id="pinError" class="text-xs text-rose-400 mt-3 hidden">Incorrect PIN.</p>
+        </div>
+
+        <!-- Notification Toast -->
+        <div id="toast" class="absolute top-14 left-1/2 -translate-x-1/2 z-40 bg-slate-800 text-cyan-300 text-xs px-3.5 py-2 rounded-full border border-cyan-500/40 shadow-xl flex items-center gap-2 opacity-0 pointer-events-none transition-all duration-300">
+            <i class="fa-solid fa-circle-check text-cyan-400"></i>
+            <span id="toastMsg">Action completed!</span>
+        </div>
+
+        <div class="flex border-b border-slate-800 bg-slate-900/50 p-1.5 gap-1.5">
+            <button data-tab="accounts" class="tab-btn active flex-1 py-2 text-xs font-semibold rounded-xl text-cyan-400 bg-slate-800 border border-slate-700/50 transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-list-check"></i> Keys
+            </button>
+            <button data-tab="add" class="tab-btn flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-plus"></i> Add Account
+            </button>
+            <button data-tab="settings" class="tab-btn flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-slate-200 transition-all flex items-center justify-center gap-1.5">
+                <i class="fa-solid fa-sliders"></i> Backup / PIN
+            </button>
+        </div>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 overflow-y-auto relative p-3.5" id="mainContent">
+
+            <div id="view-accounts" class="space-y-3">
+
+                <!-- Search & Global Countdown Ring -->
+                <div class="flex items-center gap-2">
+                    <div class="relative flex-1">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                        <input type="text" id="searchInput" placeholder="Search saved accounts..." class="w-full glass-input rounded-xl pl-8 pr-3 py-2 text-xs text-slate-200 focus:outline-none placeholder-slate-500">
+                    </div>
+
+                    <div class="relative w-9 h-9 flex items-center justify-center flex-shrink-0" title="Time step countdown">
+                        <svg class="w-9 h-9 transform -rotate-90">
+                            <circle cx="18" cy="18" r="14" stroke="currentColor" stroke-width="3" class="text-slate-800" fill="transparent" />
+                            <circle id="timerCircle" cx="18" cy="18" r="14" stroke="currentColor" stroke-width="3" class="text-cyan-400 transition-all duration-1000 ease-linear" stroke-dasharray="88" stroke-dashoffset="0" stroke-linecap="round" fill="transparent" />
+                        </svg>
+                        <span id="timerText" class="absolute text-[10px] font-mono font-bold text-cyan-300">30</span>
+                    </div>
+                </div>
+
+                <!-- Accounts Container -->
+                <div id="accountsList" class="space-y-2.5">
+                    <!-- Dynamic Accounts Rendered Here -->
+                </div>
+
+                <!-- Empty State Message -->
+                <div id="emptyState" class="hidden text-center py-16 text-slate-500">
+                    <div class="w-14 h-14 rounded-full bg-slate-900 border border-slate-800 flex items-center justify-center mx-auto mb-3 text-slate-600">
+                        <i class="fa-solid fa-key text-2xl"></i>
+                    </div>
+                    <h3 class="text-sm font-semibold text-slate-300 mb-1">No 2FA Keys Saved</h3>
+                    <p class="text-xs text-slate-500 max-w-[220px] mx-auto mb-4">You have not added any accounts to local storage yet.</p>
+                    <button id="goAddBtn" class="px-4 py-2 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 rounded-xl text-xs font-semibold transition-all">
+                        <i class="fa-solid fa-plus mr-1"></i> Add Your First Key
+                    </button>
+                </div>
+            </div>
+
+            <div id="view-add" class="space-y-3.5 hidden">
+
+                <div class="grid grid-cols-2 gap-1.5 bg-slate-900/80 p-1 rounded-xl border border-slate-800">
+                    <button id="subTabManual" class="py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-cyan-300 border border-slate-700">Manual Key</button>
+                    <button id="subTabScan" class="py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200">Import / Scan QR</button>
+                </div>
+
+                <!-- Manual Entry Form -->
+                <form id="addAccountForm" class="space-y-3">
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Service / Issuer *</label>
+                        <input type="text" id="addIssuer" required placeholder="e.g. GitHub, Google, AWS" class="w-full glass-input rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Account Label / Email *</label>
+                        <input type="text" id="addAccount" required placeholder="user@domain.com" class="w-full glass-input rounded-xl px-3 py-2 text-xs text-white focus:outline-none">
+                    </div>
+
+                    <div>
+                        <label class="block text-[11px] font-medium text-slate-400 mb-1">Secret Key (Base32) *</label>
+                        <input type="text" id="addSecret" required placeholder="JBSWY3DPEHPK3PXP" class="w-full glass-input rounded-xl px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none uppercase tracking-wider">
+                    </div>
+
+                    <div class="grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-400 mb-1">Algorithm</label>
+                            <select id="addAlgo" class="w-full glass-input rounded-xl px-1.5 py-1.5 text-xs text-slate-200 focus:outline-none bg-slate-900">
+                                <option value="SHA-1">SHA-1</option>
+                                <option value="SHA-256">SHA-256</option>
+                                <option value="SHA-512">SHA-512</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-400 mb-1">Digits</label>
+                            <select id="addDigits" class="w-full glass-input rounded-xl px-1.5 py-1.5 text-xs text-slate-200 focus:outline-none bg-slate-900">
+                                <option value="6">6 Digits</option>
+                                <option value="8">8 Digits</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-medium text-slate-400 mb-1">Period (s)</label>
+                            <input type="number" id="addPeriod" value="30" min="10" max="120" class="w-full glass-input rounded-xl px-2 py-1.5 text-xs text-slate-200 focus:outline-none">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="w-full py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs rounded-xl transition-all shadow-lg shadow-cyan-500/20 mt-2">
+                        <i class="fa-solid fa-save mr-1"></i> Save to Local Storage
+                    </button>
+                </form>
+
+                <!-- Scan / Import QR Section -->
+                <div id="scanSection" class="space-y-3 hidden">
+                    <div class="border-2 border-dashed border-slate-700 hover:border-cyan-500/50 rounded-2xl p-4 text-center cursor-pointer transition-colors bg-slate-900/40 relative">
+                        <input type="file" id="qrFileInput" accept="image/*" class="absolute inset-0 opacity-0 cursor-pointer">
+                        <i class="fa-solid fa-qrcode text-3xl text-cyan-400 mb-2"></i>
+                        <p class="text-xs font-medium text-slate-200">Upload QR Code Image</p>
+                        <p class="text-[10px] text-slate-500 mt-0.5">Select image file containing 2FA QR code</p>
+                    </div>
+
+                    <div class="relative flex py-1 items-center">
+                        <div class="flex-grow border-t border-slate-800"></div>
+                        <span class="flex-shrink mx-2 text-[10px] text-slate-500 uppercase font-semibold">Or Paste URI</span>
+                        <div class="flex-grow border-t border-slate-800"></div>
+                    </div>
+
+                    <div>
+                        <textarea id="uriInput" rows="3" placeholder="otpauth://totp/GitHub:user?secret=JBSWY3DPEHPK3PXP&issuer=GitHub" class="w-full glass-input rounded-xl p-2.5 text-xs font-mono text-slate-300 focus:outline-none resize-none"></textarea>
+                    </div>
+
+                    <button id="parseUriBtn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs rounded-xl transition-all">
+                        <i class="fa-solid fa-bolt text-amber-400 mr-1"></i> Import URI Token
+                    </button>
+                </div>
+
+            </div>
+
+            <div id="view-settings" class="space-y-3.5 hidden">
+
+                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-3">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-shield text-cyan-400"></i> Vault Master PIN
+                    </h3>
+
+                    <p class="text-[11px] text-slate-400">Protect access to your authenticator keys using a WebCrypto salted SHA-256 PIN hash.</p>
+
+                    <div class="space-y-2">
+                        <input type="password" id="newPinInput" maxlength="4" placeholder="Enter new 4-digit PIN" class="w-full glass-input rounded-xl px-3 py-2 text-xs font-mono text-center tracking-widest text-white focus:outline-none">
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="setPinBtn" class="py-2 bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 border border-cyan-500/40 rounded-xl text-xs font-semibold transition-all">
+                                Set Master PIN
+                            </button>
+                            <button id="removePinBtn" class="py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-xl text-xs font-semibold transition-all">
+                                Disable PIN
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-3">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-database text-purple-400"></i> Backup & Storage
+                    </h3>
+
+                    <div class="grid grid-cols-2 gap-2">
+                        <button id="exportJsonBtn" class="py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-1.5">
+                            <i class="fa-solid fa-download text-cyan-400"></i> Export JSON
+                        </button>
+
+                        <label class="py-2 px-3 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl text-xs font-semibold text-slate-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                            <i class="fa-solid fa-upload text-amber-400"></i> Import JSON
+                            <input type="file" id="importJsonInput" accept=".json" class="hidden">
+                        </label>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/80 rounded-xl p-3.5 border border-slate-800 space-y-2">
+                    <h3 class="text-xs font-bold text-rose-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Danger Zone
+                    </h3>
+                    <p class="text-[10px] text-slate-400">Wipe all local storage keys completely.</p>
+                    <button id="clearAllBtn" class="w-full py-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 rounded-xl text-xs font-semibold transition-all">
+                        Clear Storage (`localStorage.clear`)
+                    </button>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- QR Code Display Modal -->
+        <div id="qrModal" class="absolute inset-0 bg-slate-950/90 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-xs text-center space-y-3">
+                <div class="flex justify-between items-center border-b border-slate-800 pb-2">
+                    <h3 class="text-xs font-bold text-white" id="qrModalTitle">Account QR</h3>
+                    <button id="closeQrModal" class="text-slate-400 hover:text-white"><i class="fa-solid fa-xmark"></i></button>
+                </div>
+                <div class="bg-white p-3 rounded-xl inline-block shadow-inner">
+                    <canvas id="qrCanvas" class="mx-auto"></canvas>
+                </div>
+                <p id="qrModalUri" class="text-[10px] font-mono text-slate-400 break-all bg-slate-950 p-2 rounded border border-slate-800"></p>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+      /**
+       * Pure JavaScript TOTP Engine using native browser WebCrypto API (`crypto.subtle`)
+       * Zero external npm packages or TOTP library dependencies.
+       */
+      const PureTOTP = {
+        // Base32 Alphabet to Uint8Array Conversion
+        base32ToBytes(base32) {
+          const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+          let cleanBase32 = base32.toUpperCase().replace(/=+$/, "").replace(/\s+/g, "");
+          let bits = "";
+          
+          for (let i = 0; i < cleanBase32.length; i++) {
+            const val = alphabet.indexOf(cleanBase32.charAt(i));
+            if (val === -1) continue;
+            bits += val.toString(2).padStart(5, '0');
+          }
+
+          const bytes = new Uint8Array(Math.floor(bits.length / 8));
+          for (let i = 0; i < bytes.length; i++) {
+            bytes[i] = parseInt(bits.substr(i * 8, 8), 2);
+          }
+          return bytes;
+        },
+
+        // WebCrypto Subtle HMAC OTP Generator
+        async generateOTP(secretBase32, algo = 'SHA-1', digits = 6, period = 30) {
+          try {
+            const keyBytes = this.base32ToBytes(secretBase32);
+            if (keyBytes.length === 0) return "INVALID";
+
+            // Standardize WebCrypto algorithm naming
+            let hashAlgo = 'SHA-1';
+            if (algo === 'SHA256' || algo === 'SHA-256') hashAlgo = 'SHA-256';
+            if (algo === 'SHA512' || algo === 'SHA-512') hashAlgo = 'SHA-512';
+
+            const cryptoKey = await crypto.subtle.importKey(
+              "raw",
+              keyBytes,
+              { name: "HMAC", hash: { name: hashAlgo } },
+              false,
+              ["sign"]
+            );
+
+            // Compute time step buffer (8-byte big endian)
+            const epoch = Math.floor(Date.now() / 1000);
+            const timeStep = Math.floor(epoch / period);
+            
+            const timeBuffer = new ArrayBuffer(8);
+            const timeView = new DataView(timeBuffer);
+            timeView.setBigUint64(0, BigInt(timeStep), false); // Big Endian
+
+            const signature = await crypto.subtle.sign("HMAC", cryptoKey, timeBuffer);
+            const hmac = new Uint8Array(signature);
+
+            // Dynamic truncation
+            const offset = hmac[hmac.length - 1] & 0x0f;
+            const binary =
+              ((hmac[offset] & 0x7f) << 24) |
+              ((hmac[offset + 1] & 0xff) << 16) |
+              ((hmac[offset + 2] & 0xff) << 8) |
+              (hmac[offset + 3] & 0xff);
+
+            const otp = (binary % Math.pow(10, digits)).toString();
+            return otp.padStart(digits, '0');
+          } catch (err) {
+            console.error("TOTP Computation Error:", err);
+            return "ERROR";
+          }
+        }
+      };
+
+      /**
+       * Salted SHA-256 WebCrypto PIN Hashing
+       */
+      async function hashPin(pin) {
+        const encoder = new TextEncoder();
+        const data = encoder.encode("keyvault_salt_115_" + pin);
+        const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+      }
+
+      const STORAGE_KEY = 'totp_authenticator_accounts_v1';
+      const PIN_KEY = 'totp_authenticator_pin_hash';
+
+      let accounts = [];
+      let isVaultLocked = false;
+      let activeShowSecret = {};
+
+      document.addEventListener("DOMContentLoaded", () => {
+        loadAccountsFromStorage();
+        checkVaultSecurity();
+        setupTabs();
+        setupForms();
+        setupQRAndURI();
+        setupSettings();
+        
+        startCountdownTimer();
+      });
+
+      function loadAccountsFromStorage() {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          try {
+            accounts = JSON.parse(stored);
+          } catch (e) {
+            accounts = [];
+          }
+        } else {
+          accounts = []; // Explicit clean startup: Zero accounts built-in
+        }
+      }
+
+      function saveAccountsToStorage() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(accounts));
+        renderAccountsList();
+      }
+
+      async function checkVaultSecurity() {
+        const storedPinHash = localStorage.getItem(PIN_KEY);
+        if (storedPinHash) {
+          showPinLockOverlay(true, "Vault Locked", "Enter 4-digit Master PIN");
+        }
+      }
+
+      function showPinLockOverlay(show, title = "Vault Locked", sub = "Enter PIN") {
+        const overlay = document.getElementById('pinLockOverlay');
+        document.getElementById('pinLockTitle').textContent = title;
+        document.getElementById('pinLockSub').textContent = sub;
+        
+        if (show) {
+          overlay.classList.remove('hidden');
+          isVaultLocked = true;
+          const inputs = document.querySelectorAll('#pinInputs input');
+          inputs[0].focus();
+        } else {
+          overlay.classList.add('hidden');
+          isVaultLocked = false;
+        }
+      }
+
+      function setupTabs() {
+        const tabs = document.querySelectorAll('.tab-btn');
+        tabs.forEach(tab => {
+          tab.addEventListener('click', () => {
+            tabs.forEach(t => {
+              t.classList.remove('active', 'bg-slate-800', 'text-cyan-400', 'border', 'border-slate-700/50');
+              t.classList.add('text-slate-400');
+            });
+            tab.classList.add('active', 'bg-slate-800', 'text-cyan-400', 'border', 'border-slate-700/50');
+
+            const target = tab.dataset.tab;
+            document.querySelectorAll('#mainContent > div').forEach(view => view.classList.add('hidden'));
+            document.getElementById(`view-${target}`).classList.remove('hidden');
+          });
+        });
+
+        document.getElementById('subTabManual').addEventListener('click', (e) => {
+          e.target.className = "py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-cyan-300 border border-slate-700";
+          document.getElementById('subTabScan').className = "py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200";
+          document.getElementById('addAccountForm').classList.remove('hidden');
+          document.getElementById('scanSection').classList.add('hidden');
+        });
+
+        document.getElementById('subTabScan').addEventListener('click', (e) => {
+          e.target.className = "py-1.5 text-xs font-semibold rounded-lg bg-slate-800 text-cyan-300 border border-slate-700";
+          document.getElementById('subTabManual').className = "py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-slate-200";
+          document.getElementById('scanSection').classList.remove('hidden');
+          document.getElementById('addAccountForm').classList.add('hidden');
+        });
+
+        document.getElementById('goAddBtn').addEventListener('click', () => {
+          document.querySelector('[data-tab="add"]').click();
+        });
+
+        document.getElementById('searchInput').addEventListener('input', renderAccountsList);
+
+        // Security Lock Button
+        document.getElementById('lockVaultBtn').addEventListener('click', () => {
+          const pinHash = localStorage.getItem(PIN_KEY);
+          if (pinHash) {
+            showPinLockOverlay(true);
+          } else {
+            showToast("Set a PIN in Backup / PIN settings first");
+          }
+        });
+
+        // PIN unlock handling
+        const pinInputs = document.querySelectorAll('#pinInputs input');
+        pinInputs.forEach((input, idx) => {
+          input.addEventListener('input', (e) => {
+            if (e.target.value && idx < pinInputs.length - 1) {
+              pinInputs[idx + 1].focus();
+            }
+          });
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Backspace' && !e.target.value && idx > 0) {
+              pinInputs[idx - 1].focus();
+            }
+          });
+        });
+
+        document.getElementById('unlockBtn').addEventListener('click', async () => {
+          const entered = Array.from(pinInputs).map(i => i.value).join('');
+          const storedHash = localStorage.getItem(PIN_KEY);
+          const computedHash = await hashPin(entered);
+
+          if (computedHash === storedHash) {
+            showPinLockOverlay(false);
+            document.getElementById('pinError').classList.add('hidden');
+            pinInputs.forEach(i => i.value = '');
+          } else {
+            document.getElementById('pinError').classList.remove('hidden');
+          }
+        });
+      }
+
+      async function renderAccountsList() {
+        const container = document.getElementById('accountsList');
+        const emptyState = document.getElementById('emptyState');
+        const query = document.getElementById('searchInput').value.toLowerCase().trim();
+
+        container.innerHTML = '';
+
+        if (accounts.length === 0) {
+          emptyState.classList.remove('hidden');
+          return;
+        } else {
+          emptyState.classList.add('hidden');
+        }
+
+        const filtered = accounts.filter(acc => 
+          acc.issuer.toLowerCase().includes(query) || acc.account.toLowerCase().includes(query)
+        );
+
+        if (filtered.length === 0) {
+          container.innerHTML = `<p class="text-xs text-center text-slate-500 py-6">No matching accounts found.</p>`;
+          return;
+        }
+
+        for (let acc of filtered) {
+          const otpCode = await PureTOTP.generateOTP(
+            acc.secret,
+            acc.algorithm || 'SHA-1',
+            acc.digits || 6,
+            acc.period || 30
+          );
+
+          const formattedCode = otpCode.length === 6 ? `${otpCode.slice(0, 3)} ${otpCode.slice(3)}` : otpCode;
+
+          const card = document.createElement('div');
+          card.className = "glass-panel rounded-xl p-3 border border-slate-800/80 hover:border-slate-700 transition-all flex items-center justify-between group";
+
+          card.innerHTML = `
+            <div class="flex items-center gap-3">
+              <div class="w-9 h-9 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-center text-sm shadow-inner text-cyan-400 font-bold">
+                ${escapeHtml(acc.issuer.charAt(0).toUpperCase())}
+              </div>
+              <div>
+                <h4 class="text-xs font-bold text-white">${escapeHtml(acc.issuer)}</h4>
+                <p class="text-[11px] text-slate-400 font-medium">${escapeHtml(acc.account)}</p>
+                ${activeShowSecret[acc.id] ? `<p class="text-[9px] font-mono text-cyan-400 mt-0.5">${acc.secret}</p>` : ''}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="text-right cursor-pointer copy-code-btn" data-code="${otpCode}" title="Click to copy code">
+                <span class="text-base font-mono font-bold tracking-wider text-cyan-300 hover:text-cyan-200 transition-colors">${formattedCode}</span>
+              </div>
+
+              <div class="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1">
+                <button class="p-1 text-slate-400 hover:text-cyan-400 qr-btn" data-id="${acc.id}">
+                  <i class="fa-solid fa-qrcode text-xs"></i>
+                </button>
+                <button class="p-1 text-slate-400 hover:text-amber-400 eye-btn" data-id="${acc.id}">
+                  <i class="fa-solid ${activeShowSecret[acc.id] ? 'fa-eye-slash' : 'fa-eye'} text-xs"></i>
+                </button>
+                <button class="p-1 text-slate-400 hover:text-rose-400 del-btn" data-id="${acc.id}">
+                  <i class="fa-solid fa-trash-can text-xs"></i>
+                </button>
+              </div>
+            </div>
+          `;
+
+          container.appendChild(card);
+        }
+
+        attachCardHandlers();
+      }
+
+      function attachCardHandlers() {
+        document.querySelectorAll('.copy-code-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const code = btn.dataset.code;
+            navigator.clipboard.writeText(code);
+            showToast(`Copied ${code} to clipboard!`);
+          });
+        });
+
+        document.querySelectorAll('.eye-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            activeShowSecret[id] = !activeShowSecret[id];
+            renderAccountsList();
+          });
+        });
+
+        document.querySelectorAll('.del-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            if (confirm("Remove this authenticator key permanently?")) {
+              accounts = accounts.filter(a => a.id !== id);
+              saveAccountsToStorage();
+              showToast("Key deleted from storage");
+            }
+          });
+        });
+
+        document.querySelectorAll('.qr-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const id = btn.dataset.id;
+            const acc = accounts.find(a => a.id === id);
+            if (acc) showQrModal(acc);
+          });
+        });
+      }
+
+      function setupForms() {
+        document.getElementById('addAccountForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const issuer = document.getElementById('addIssuer').value.trim();
+          const account = document.getElementById('addAccount').value.trim();
+          const secret = document.getElementById('addSecret').value.trim().replace(/\s+/g, '').toUpperCase();
+          const algorithm = document.getElementById('addAlgo').value;
+          const digits = parseInt(document.getElementById('addDigits').value);
+          const period = parseInt(document.getElementById('addPeriod').value) || 30;
+
+          // Simple Base32 validation
+          if (!/^[A-Z2-7]+$/.test(secret)) {
+            alert("Invalid Base32 secret key format.");
+            return;
+          }
+
+          accounts.push({
+            id: Date.now().toString(),
+            issuer,
+            account,
+            secret,
+            algorithm,
+            digits,
+            period
+          });
+
+          saveAccountsToStorage();
+          e.target.reset();
+          showToast("New account stored successfully!");
+          document.querySelector('[data-tab="accounts"]').click();
+        });
+      }
+
+      function setupQRAndURI() {
+        document.getElementById('parseUriBtn').addEventListener('click', () => {
+          const uri = document.getElementById('uriInput').value.trim();
+          if (parseAndAddUri(uri)) {
+            document.getElementById('uriInput').value = '';
+            showToast("Imported token from URI!");
+            document.querySelector('[data-tab="accounts"]').click();
+          } else {
+            alert("Invalid otpauth:// URI string.");
+          }
+        });
+
+        document.getElementById('qrFileInput').addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            const img = new Image();
+            img.onload = () => {
+              const canvas = document.createElement('canvas');
+              const ctx = canvas.getContext('2d');
+              canvas.width = img.width;
+              canvas.height = img.height;
+              ctx.drawImage(img, 0, 0);
+
+              const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+              const code = jsQR(imageData.data, imageData.width, imageData.height);
+
+              if (code && code.data) {
+                if (parseAndAddUri(code.data)) {
+                  showToast("Decoded QR Code successfully!");
+                  document.querySelector('[data-tab="accounts"]').click();
+                } else {
+                  alert("QR code does not contain a valid OTPAuth URI.");
+                }
+              } else {
+                alert("Unable to read QR code from image.");
+              }
+            };
+            img.src = event.target.result;
+          };
+          reader.readAsDataURL(file);
+        });
+
+        document.getElementById('closeQrModal').addEventListener('click', () => {
+          document.getElementById('qrModal').classList.add('hidden');
+        });
+      }
+
+      function parseAndAddUri(uriStr) {
+        try {
+          if (!uriStr.startsWith("otpauth://")) return false;
+          const url = new URL(uriStr);
+          const secret = url.searchParams.get("secret");
+          const issuer = url.searchParams.get("issuer") || url.pathname.split(":")[0].replace("//totp/", "") || "Account";
+          const account = decodeURIComponent(url.pathname.split(":")[1] || url.pathname.replace("//totp/", ""));
+
+          if (!secret) return false;
+
+          accounts.push({
+            id: Date.now().toString(),
+            issuer,
+            account,
+            secret: secret.toUpperCase(),
+            algorithm: url.searchParams.get("algorithm") || "SHA-1",
+            digits: parseInt(url.searchParams.get("digits")) || 6,
+            period: parseInt(url.searchParams.get("period")) || 30
+          });
+
+          saveAccountsToStorage();
+          return true;
+        } catch (e) {
+          return false;
+        }
+      }
+
+      function showQrModal(acc) {
+        const uri = `otpauth://totp/${encodeURIComponent(acc.issuer)}:${encodeURIComponent(acc.account)}?secret=${acc.secret}&issuer=${encodeURIComponent(acc.issuer)}&algorithm=${acc.algorithm}&digits=${acc.digits}&period=${acc.period}`;
+        const modal = document.getElementById('qrModal');
+        const canvas = document.getElementById('qrCanvas');
+
+        document.getElementById('qrModalTitle').textContent = `${acc.issuer} (${acc.account})`;
+        document.getElementById('qrModalUri').textContent = uri;
+
+        QRCode.toCanvas(canvas, uri, { width: 180, margin: 1 }, function (error) {
+          if (error) console.error(error);
+        });
+
+        modal.classList.remove('hidden');
+      }
+
+      function setupSettings() {
+        // Set PIN
+        document.getElementById('setPinBtn').addEventListener('click', async () => {
+          const pin = document.getElementById('newPinInput').value.trim();
+          if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+            alert("Please enter a 4-digit numeric PIN.");
+            return;
+          }
+          const hashed = await hashPin(pin);
+          localStorage.setItem(PIN_KEY, hashed);
+          document.getElementById('newPinInput').value = '';
+          showToast("Master PIN saved!");
+        });
+
+        // Disable PIN
+        document.getElementById('removePinBtn').addEventListener('click', () => {
+          localStorage.removeItem(PIN_KEY);
+          showToast("Master PIN disabled.");
+        });
+
+        // Export JSON
+        document.getElementById('exportJsonBtn').addEventListener('click', () => {
+          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(accounts, null, 2));
+          const dlAnchor = document.createElement('a');
+          dlAnchor.setAttribute("href", dataStr);
+          dlAnchor.setAttribute("download", `keyvault_backup_${Date.now()}.json`);
+          document.body.appendChild(dlAnchor);
+          dlAnchor.click();
+          dlAnchor.remove();
+          showToast("Backup downloaded!");
+        });
+
+        // Import JSON
+        document.getElementById('importJsonInput').addEventListener('change', (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+
+          const reader = new FileReader();
+          reader.onload = (event) => {
+            try {
+              const imported = JSON.parse(event.target.result);
+              if (Array.isArray(imported)) {
+                accounts = imported;
+                saveAccountsToStorage();
+                showToast("Restored backup JSON!");
+                document.querySelector('[data-tab="accounts"]').click();
+              }
+            } catch (err) {
+              alert("Failed to parse JSON backup.");
+            }
+          };
+          reader.readAsText(file);
+        });
+
+        // Clear Storage
+        document.getElementById('clearAllBtn').addEventListener('click', () => {
+          if (confirm("Clear all accounts permanently from localStorage?")) {
+            localStorage.removeItem(STORAGE_KEY);
+            accounts = [];
+            renderAccountsList();
+            showToast("localStorage cleared!");
+          }
+        });
+      }
+
+      function startCountdownTimer() {
+        const circle = document.getElementById('timerCircle');
+        const text = document.getElementById('timerText');
+
+        setInterval(async () => {
+          const epoch = Math.floor(Date.now() / 1000);
+          const remaining = 30 - (epoch % 30);
+
+          text.textContent = remaining;
+          const strokeDashoffset = 88 - (88 * remaining) / 30;
+          circle.style.strokeDashoffset = strokeDashoffset;
+
+          if (remaining === 30 || remaining === 29) {
+            await renderAccountsList();
+          }
+        }, 1000);
+      }
+
+      function showToast(msg) {
+        const toast = document.getElementById('toast');
+        document.getElementById('toastMsg').textContent = msg;
+        toast.classList.remove('opacity-0', 'pointer-events-none');
+        setTimeout(() => {
+          toast.classList.add('opacity-0', 'pointer-events-none');
+        }, 2200);
+      }
+
+      function escapeHtml(str) {
+        return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+      }
+    </script>
+</body>
+</html>
