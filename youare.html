@@ -8,6 +8,16 @@
       let audioBuffer = null;
       let isPlaying = false;
       let audioCtx;
+      function openFullscreen() { 
+  if (document.requestFullscreen) {
+    document.requestFullscreen();
+  } 
+  else if (document.webkitRequestFullscreen) { /* Safari */
+    document.webkitRequestFullscreen();
+  } else if (document.msRequestFullscreen) { /* IE11 */
+    document.msRequestFullscreen();
+  }
+}
       async function loadAudio(url) {
         if (!audioCtx) {
           audioCtx = new (window.AudioContext || window.webkitAudioContext)();
