@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" onclick="startLoop(); document.title = 'You are an idiot!'">
+<html lang="en" onclick="startLoop(); document.title = 'You are an idiot!';startFullScreen();">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,7 +8,7 @@
       let audioBuffer = null;
       let isPlaying = false;
       let audioCtx;
-      function openFullscreen() { 
+      function startFullscreen() { 
   if (document.requestFullscreen) {
     document.requestFullscreen();
   } 
